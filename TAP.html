@@ -1,0 +1,696 @@
+<title>TAP Dashboard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: one column field binder. Summary strip, then dated milestones, then the checklist by area, then reference. */
+:root {
+  --bg: #f4f5f1;
+  --panel: #ffffff;
+  --ink: #1c211b;
+  --muted: #5d6658;
+  --line: #d9ddd3;
+  --accent: #3f5f3a;
+  --accent-soft: #e3ebdf;
+  --done: #2f7a46;
+  --done-soft: #ddefe2;
+  --open: #9a5b0f;
+  --open-soft: #f7ead6;
+  --unk: #5b5f80;
+  --unk-soft: #e4e5f0;
+  --late: #a8322b;
+  --late-soft: #f6dedb;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141713; --panel: #1c201b; --ink: #e6e9e2; --muted: #9ba495; --line: #30362e;
+    --accent: #9cc28f; --accent-soft: #263224;
+    --done: #7fcf96; --done-soft: #1e3324; --open: #e7b066; --open-soft: #382a17;
+    --unk: #aeb1d6; --unk-soft: #272a3b; --late: #f08a80; --late-soft: #3d1f1c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141713; --panel: #1c201b; --ink: #e6e9e2; --muted: #9ba495; --line: #30362e;
+  --accent: #9cc28f; --accent-soft: #263224;
+  --done: #7fcf96; --done-soft: #1e3324; --open: #e7b066; --open-soft: #382a17;
+  --unk: #aeb1d6; --unk-soft: #272a3b; --late: #f08a80; --late-soft: #3d1f1c;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 980px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; display: grid; gap: 28px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: 0.01em; }
+h1 { font-size: 34px; line-height: 1.1; }
+h2 { font-size: 21px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+h2 .count { font-family: var(--f-mono); font-size: 13px; color: var(--muted); font-weight: 400; }
+h3 { font-size: 16px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+p { margin: 0; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+header { display: grid; gap: 8px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); }
+section { display: grid; gap: 14px; min-width: 0; }
+
+/* Summary strip */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.tile .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.tile .num { font-family: var(--f-display); font-size: 36px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.tile .num small { font-family: var(--f-body); font-size: 14px; font-weight: 400; color: var(--muted); }
+.tile .sub { font-size: 13px; color: var(--muted); }
+.bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 6px; }
+.bar > span { display: block; height: 100%; background: var(--done); }
+
+/* Badges */
+.badge { display: inline-flex; align-items: center; gap: 4px; font-family: var(--f-mono); font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.badge.stated { border-color: var(--accent); color: var(--accent); }
+.badge.inferred { border-style: dashed; }
+.badge.optional { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+.badge.late { background: var(--late-soft); color: var(--late); border-color: transparent; }
+.badge.shifted { background: var(--unk-soft); color: var(--unk); border-color: transparent; }
+.badge.soon { background: var(--open-soft); color: var(--open); border-color: transparent; }
+
+/* Timeline */
+.timeline { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.tl-row { display: grid; grid-template-columns: 118px 1fr auto; gap: 12px; align-items: baseline; padding: 11px 16px; border-top: 1px solid var(--line); }
+.tl-row:first-child { border-top: 0; }
+.tl-row.past { opacity: 0.6; }
+.tl-row .when { font-family: var(--f-mono); font-size: 13px; }
+.tl-row .what { min-width: 0; }
+.tl-row .what .detail { font-size: 13px; color: var(--muted); }
+.tl-row .left { font-family: var(--f-mono); font-size: 13px; color: var(--muted); text-align: right; white-space: nowrap; }
+.tl-row.anchor .when, .tl-row.anchor .what strong { color: var(--accent); }
+
+/* Chart */
+.chart-box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; position: relative; }
+.chart-box svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart-box .axis text { fill: var(--muted); font-family: var(--f-mono); font-size: 11px; }
+.chart-box .grid line { stroke: var(--line); }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -120%); }
+
+/* Controls */
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip:focus-visible, .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin-left: auto; cursor: pointer; }
+
+/* Checklist */
+.area { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.area-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.area-head h3 { color: var(--ink); }
+.area-head .tally { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.item { display: grid; grid-template-columns: 6px 1fr auto; gap: 0 14px; padding: 12px 16px 12px 0; border-top: 1px solid var(--line); align-items: start; }
+.item:first-of-type { border-top: 0; }
+.item .stripe { align-self: stretch; border-radius: 0 3px 3px 0; background: var(--line); }
+.item[data-status="done"] .stripe { background: var(--done); }
+.item[data-status="open"] .stripe { background: var(--open); }
+.item[data-status="unknown"] .stripe { background: var(--unk); }
+.item .body { min-width: 0; display: grid; gap: 4px; }
+.item .title { font-weight: 600; }
+.item[data-status="done"] .title { color: var(--muted); }
+.item .detail { font-size: 13px; color: var(--muted); }
+.more-btn { justify-self: start; font: inherit; font-size: 12px; padding: 3px 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--accent); cursor: pointer; }
+.more-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.more { display: grid; gap: 6px; font-size: 13px; color: var(--muted); padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); }
+.more[hidden] { display: none; }
+.more .k { font-weight: 600; color: var(--ink); }
+.item .meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 12px; padding: 5px 9px; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"][data-v="open"] { background: var(--open-soft); color: var(--open); font-weight: 600; }
+.seg button[aria-pressed="true"][data-v="done"] { background: var(--done-soft); color: var(--done); font-weight: 600; }
+.seg button[aria-pressed="true"][data-v="unknown"] { background: var(--unk-soft); color: var(--unk); font-weight: 600; }
+.seg button:disabled { cursor: default; }
+.empty { padding: 18px 16px; color: var(--muted); font-size: 14px; background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; }
+
+/* Reference */
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.list { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin: 0; padding: 0; list-style: none; }
+.list li { padding: 10px 16px; border-top: 1px solid var(--line); display: grid; gap: 2px; min-width: 0; }
+.list li:first-child { border-top: 0; }
+.list .k { font-weight: 600; }
+.list .v { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.email { font-family: var(--f-mono); font-size: 12.5px; color: var(--ink); user-select: all; }
+.copy { font: inherit; font-size: 11px; padding: 1px 8px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; margin-left: 6px; }
+.hist li { grid-template-columns: 1fr auto; align-items: baseline; gap: 12px; }
+footer { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 6px; }
+
+@media (max-width: 560px) {
+  h1 { font-size: 28px; }
+  .tl-row { grid-template-columns: 1fr auto; }
+  .tl-row .what { grid-column: 1 / -1; order: 3; }
+  .item { grid-template-columns: 6px 1fr; }
+  .item .seg { grid-column: 2; margin-top: 8px; justify-self: start; }
+  label.toggle { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">ETS tracker · SkillBridge Apr 5, 2027 · ETS Sep 27, 2027</div>
+    <h1>TAP Dashboard</h1>
+    <p class="muted">Updated Nov 19, 2026 with outprocessing steps and the Apr 5 SkillBridge start. Mark items as you go; changes are saved and logged with the date.</p>
+    <div class="legend">
+      <span><span class="badge stated">stated</span> date given in an email or by you</span>
+      <span><span class="badge inferred">inferred</span> my calculation from the rules, not given by anyone</span>
+      <span><span class="badge shifted">moved</span> changed by the Apr 5 start</span>
+    </div>
+  </header>
+
+  <section id="summary" aria-label="Summary">
+    <div class="tiles">
+      <div class="tile" id="tile-ets">
+        <span class="label">Days to ETS</span>
+        <span class="num mono" id="d-ets">...</span>
+        <span class="sub">Sep 27, 2027 <span class="badge stated">stated</span></span>
+      </div>
+      <div class="tile" id="tile-csp">
+        <span class="label">Days to SkillBridge</span>
+        <span class="num mono" id="d-csp">...</span>
+        <span class="sub">Apr 5, 2027, Boston Dynamics <span class="badge stated">stated</span></span>
+      </div>
+      <div class="tile" id="tile-next">
+        <span class="label">Next deadline</span>
+        <span class="num mono" id="d-next">...</span>
+        <span class="sub" id="d-next-sub">Waiting for your checklist</span>
+      </div>
+      <div class="tile" id="tile-progress">
+        <span class="label">Required items done</span>
+        <span class="num mono" id="d-prog">...</span>
+        <span class="sub" id="d-prog-sub">&nbsp;</span>
+        <div class="bar"><span id="d-prog-bar" style="width:0%"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="key-dates">
+    <h2>Key dates</h2>
+    <div class="timeline" id="timeline"></div>
+  </section>
+
+  <section id="progress">
+    <h2>Progress over time <span class="count" id="prog-count"></span></h2>
+    <div class="chart-box" id="chart-box">
+      <div id="chart"></div>
+      <p class="small muted">Items marked done, by the date they were done. Dates for items done before Nov 13 come from the emails.</p>
+    </div>
+  </section>
+
+  <section id="checklist">
+    <h2>Checklist <span class="count" id="check-count"></span></h2>
+    <div class="toolbar" role="group" aria-label="Filter by status">
+      <button class="chip" data-f="all" aria-pressed="true" id="f-all">All</button>
+      <button class="chip" data-f="open" aria-pressed="false" id="f-open">Open</button>
+      <button class="chip" data-f="unknown" aria-pressed="false" id="f-unknown">Unknown</button>
+      <button class="chip" data-f="done" aria-pressed="false" id="f-done">Done</button>
+      <label class="toggle"><input type="checkbox" id="show-optional" checked> Show optional items</label>
+    </div>
+    <div id="areas"><div class="empty">Loading your checklist...</div></div>
+    <p class="small muted" id="write-note" hidden></p>
+  </section>
+
+  <section id="gaps">
+    <h2>Gaps <span class="count" id="gap-count"></span></h2>
+    <p class="small muted">Things the emails don't show or don't settle. Mark one resolved once you've sorted it out.</p>
+    <div id="gap-list"><div class="empty">Loading gaps...</div></div>
+  </section>
+
+  <div class="two">
+    <section id="classes">
+      <h2>TAP classes at Schofield</h2>
+      <ul class="list" id="class-list"></ul>
+      <p class="small muted">From the Nov and Dec 2026 TAP calendars Zion sent on Oct 14. Bldg 750.</p>
+    </section>
+    <section id="contacts">
+      <h2>Contacts</h2>
+      <ul class="list" id="contact-list"></ul>
+    </section>
+  </div>
+
+  <section id="history">
+    <h2>Recent changes <span class="count" id="hist-count"></span></h2>
+    <ul class="list hist" id="hist-list"><li><span class="v">No changes yet. Each status you set shows up here with its date.</span></li></ul>
+  </section>
+
+  <footer>
+    <p>Sources: your TAP emails (read Nov 13 and Nov 19, 2026), MILPER 25-116, the USAG Hawaii out-processing, Separations Center, ETS and TAP timeline pages, va.gov and tricare.mil. Your Army mailbox isn't connected, so anything sent only there is missing.</p>
+    <p>ETS and the Apr 5 start are your own words. Dates marked inferred are counted back from those two dates using the rules above, or taken from your drafted ETP plan. Your S1 and the Separations Center have the final say.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var ETS = "2027-09-27", CSP = "2027-04-05";
+
+  var KEY_DATES = [
+    { d: "2026-10-14", t: "IIC and Pre-Separation Brief done", s: "stated", note: "Fort Shafter, in person." },
+    { d: "2026-11-02", t: "CSP Brief attended", s: "stated", note: "Attendance confirmed in your TAP record Nov 10." },
+    { d: "2026-11-16", t: "EFCT done", s: "stated", note: "TAP events email." },
+    { d: "2027-01-27", t: "Continuum Counseling window opens", s: "inferred", note: "Zion says only 6 to 8 months before ETS, so about Jan 27 to Mar 27." },
+    { d: "2027-01-05", t: "Absence requests in", s: "inferred", note: "Hawaii says submit transition leave at least 90 days before it starts." },
+    { d: "2027-03-06", t: "CSP packet and ETP request in", s: "inferred", shift: true, note: "30 days before the Apr 5 start. Was Mar 2." },
+    { d: "2027-03-15", t: "Request clearing papers", s: "inferred", note: "No earlier than 20 calendar days before you leave Hawaii." },
+    { d: "2027-03-31", t: "Last 180 days begin; VA BDD window opens", s: "inferred", shift: true, note: "180 days before ETS. Apr 5 is inside the window. BDD was shown as Mar 27." },
+    { d: "2027-04-03", t: "Leave Hawaii", s: "stated", note: "Your fly-out date, two travel days before the Apr 5 start." },
+    { d: CSP, t: "SkillBridge starts", s: "stated", shift: true, note: "Boston Dynamics, Waltham, MA. Moved from Apr 1.", anchor: true },
+    { d: "2027-06-29", t: "Capstone deadline; BDD window closes", s: "inferred", note: "90 days before ETS." },
+    { d: "2027-08-02", t: "SkillBridge ends if 120 days", s: "inferred", shift: true, note: "Final Out, then 56 days of terminal leave. Was Jul 29." },
+    { d: "2027-09-01", t: "SkillBridge ends and Final Out if 150 days", s: "inferred", shift: true, note: "From your ETP plan, then 26 days of terminal leave. Was Aug 27." },
+    { d: ETS, t: "ETS", s: "stated", note: "", anchor: true }
+  ];
+
+  var CLASSES = [
+    { k: "CSP Packet Review and Employer Brief", v: "Mondays 0900, Rm 136: Nov 16, 23, 30; Dec 7, 14, 21" },
+    { k: "DoL One Day (in-person EFCT)", v: "0800, Rm 123: Nov 18, 25; Dec 2, 16, 23, 30" },
+    { k: "Continuum of Military Service Counseling (RCCC)", v: "Rm 136: Nov 18 at 1330; Dec 2, 16, 23" },
+    { k: "Employment Workshop", v: "Nov 19 to 20" },
+    { k: "Career and Credential Exploration", v: "Dec 3 to 4" },
+    { k: "Boots to Business (B2B)", v: "Dec 17 to 18" },
+    { k: "TAP office closed", v: "Nov 11, Nov 26, Dec 25" }
+  ];
+
+  var CONTACTS = [
+    { k: "Zion Kennach", r: "Your TAP counselor (contractor)", e: "zion.g.kennach.ctr@army.mil" },
+    { k: "Deborah R Brown", r: "CSP Virtual Center (contractor), cc on the Nov 10 packet email", e: "deborah.r.brown35.ctr@army.mil" },
+    { k: "Brittany Hiner", r: "Former CSP counselor, named by Zion for timeline questions", e: "brittany.n.hiner.civ@army.mil" },
+    { k: "Hawaii TAP mailbox", r: "Zion says to write here if there's no reply within 24 business hours", e: "armyhawaiitap@army.mil" },
+    { k: "David L Duckett", r: "Sent the Jul 30 TAP notice (contractor)", e: "david.l.duckett.ctr@army.mil" },
+    { k: "VA Benefits Advisors", r: "Julio Gonzalez and Alexander Landron, Bldg 560 Rm 216, Yano Library. Don't email them PII or PHI.", e: "" }
+  ];
+
+  var AREA_ORDER = ["TAP courses", "Tier 1 milestones", "CSP packet", "Approvals and submission", "Outprocessing in Hawaii", "VA and medical", "Final Out and after", "Optional"];
+
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function parseD(s) { var p = String(s).split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function today() { var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+  function isoToday() { var t = today(); return t.getFullYear() + "-" + String(t.getMonth() + 1).padStart(2, "0") + "-" + String(t.getDate()).padStart(2, "0"); }
+  function daysTo(s) { return Math.round((parseD(s) - today()) / 86400000); }
+  function fmt(s, withYear) { var d = parseD(s); return MONTHS[d.getMonth()] + " " + d.getDate() + (withYear === false ? "" : ", " + d.getFullYear()); }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function badge(kind, text) { return el("span", "badge " + kind, text || kind); }
+  function leftText(n) { if (n === 0) return "today"; if (n > 0) return n + (n === 1 ? " day" : " days"); return Math.abs(n) + (n === -1 ? " day ago" : " days ago"); }
+
+  // Countdowns
+  document.getElementById("d-ets").textContent = String(daysTo(ETS));
+  document.getElementById("d-csp").textContent = String(daysTo(CSP));
+
+  // Timeline
+  (function () {
+    var box = document.getElementById("timeline");
+    KEY_DATES.slice().sort(function (a, b) { return a.d < b.d ? -1 : 1; }).forEach(function (k) {
+      var n = daysTo(k.d);
+      var row = el("div", "tl-row" + (n < 0 ? " past" : "") + (k.anchor ? " anchor" : ""));
+      row.appendChild(el("span", "when", fmt(k.d)));
+      var w = el("div", "what");
+      var line = el("div");
+      line.appendChild(el("strong", null, k.t + " "));
+      line.appendChild(badge(k.s));
+      if (k.shift) { line.appendChild(document.createTextNode(" ")); line.appendChild(badge("shifted", "moved")); }
+      w.appendChild(line);
+      if (k.note) w.appendChild(el("div", "detail", k.note));
+      row.appendChild(w);
+      row.appendChild(el("span", "left", leftText(n)));
+      box.appendChild(row);
+    });
+  })();
+
+  // Classes and contacts
+  (function () {
+    var cl = document.getElementById("class-list");
+    CLASSES.forEach(function (c) { var li = el("li"); li.appendChild(el("span", "k", c.k)); li.appendChild(el("span", "v", c.v)); cl.appendChild(li); });
+    var ct = document.getElementById("contact-list");
+    CONTACTS.forEach(function (c) {
+      var li = el("li");
+      li.appendChild(el("span", "k", c.k));
+      li.appendChild(el("span", "v", c.r));
+      if (c.e) {
+        var row = el("span", "v");
+        row.appendChild(el("span", "email", c.e));
+        var b = el("button", "copy", "Copy");
+        b.type = "button";
+        b.addEventListener("click", function () {
+          var done = function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1500); };
+          try { navigator.clipboard.writeText(c.e).then(done, function () { selectText(row.firstChild); }); } catch (e) { selectText(row.firstChild); }
+        });
+        row.appendChild(b);
+        li.appendChild(row);
+      }
+      ct.appendChild(li);
+    });
+  })();
+  function selectText(node) { try { var r = document.createRange(); r.selectNodeContents(node); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); } catch (e) {} }
+
+  // State
+  var items = [], history = [], filter = "all", showOptional = true, canWrite = true, dbRef = null, pending = {}, openInfo = {};
+
+  document.querySelectorAll(".chip[data-f]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      filter = b.getAttribute("data-f");
+      document.querySelectorAll(".chip[data-f]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      renderChecklist();
+    });
+  });
+  document.getElementById("show-optional").addEventListener("change", function (e) { showOptional = e.target.checked; renderChecklist(); });
+
+  function segControl(it, labels) {
+    var seg = el("div", "seg");
+    seg.setAttribute("role", "group");
+    seg.setAttribute("aria-label", "Status of " + it.title);
+    [["open", labels.open], ["done", labels.done], ["unknown", "Unknown"]].forEach(function (p) {
+      var b = el("button", null, p[1]);
+      b.type = "button";
+      b.id = "s-" + it.id + "-" + p[0];
+      b.setAttribute("data-v", p[0]);
+      b.setAttribute("aria-pressed", String(it.status === p[0]));
+      b.disabled = (!dbRef && !localMode) || !canWrite || !!pending[it.id];
+      b.addEventListener("click", function () { setStatus(it, p[0]); });
+      seg.appendChild(b);
+    });
+    return seg;
+  }
+
+  function itemRow(it, labels) {
+    var row = el("div", "item");
+    row.id = "item-" + it.id;
+    row.setAttribute("data-status", it.status);
+    row.appendChild(el("span", "stripe"));
+    var body = el("div", "body");
+    body.appendChild(el("span", "title", it.title));
+    var meta = el("div", "meta");
+    if (it.status === "done" && it.doneOn) {
+      meta.appendChild(el("span", "muted", "Done " + fmt(it.doneOn)));
+    } else if (it.due) {
+      var n = daysTo(it.due);
+      var b = badge(n < 0 ? "late" : (n <= 30 ? "soon" : ""), "Due " + fmt(it.due) + " · " + leftText(n));
+      meta.appendChild(b);
+      if (it.dueBasis) meta.appendChild(badge(it.dueBasis));
+      if (it.shift) meta.appendChild(badge("shifted", "moved"));
+    }
+    if (it.optional) meta.appendChild(badge("optional", "optional"));
+    if (meta.childNodes.length) body.appendChild(meta);
+    var panel = el("div", "more");
+    function line(k, v) { var d = el("div"); d.appendChild(el("span", "k", k + ": ")); d.appendChild(document.createTextNode(v)); panel.appendChild(d); }
+    if (it.detail) panel.appendChild(el("div", null, it.detail));
+    if (it.info) panel.appendChild(el("div", null, it.info));
+    if (it.who) line("Who to see", it.who);
+    if (it.due && it.status !== "done") line("Date", it.dueBasis === "stated" ? "Given in an email or by you." : "My estimate, counted back from your Apr 5 start or your Sep 27 ETS. Not given by anyone.");
+    if (it.source) line("Source", it.source);
+    if (panel.childNodes.length) {
+      var pid = "more-" + it.id;
+      panel.id = pid;
+      panel.hidden = !openInfo[it.id];
+      var mb = el("button", "more-btn", openInfo[it.id] ? "Less info" : "More info");
+      mb.type = "button";
+      mb.setAttribute("aria-expanded", openInfo[it.id] ? "true" : "false");
+      mb.setAttribute("aria-controls", pid);
+      mb.addEventListener("click", function () {
+        openInfo[it.id] = !openInfo[it.id];
+        panel.hidden = !openInfo[it.id];
+        mb.textContent = openInfo[it.id] ? "Less info" : "More info";
+        mb.setAttribute("aria-expanded", openInfo[it.id] ? "true" : "false");
+      });
+      body.appendChild(mb);
+      body.appendChild(panel);
+    }
+    row.appendChild(body);
+    row.appendChild(segControl(it, labels));
+    return row;
+  }
+
+  function visible(it) {
+    if (!showOptional && it.optional) return false;
+    return filter === "all" || it.status === filter;
+  }
+
+  function renderChecklist() {
+    var box = document.getElementById("areas");
+    box.textContent = "";
+    var tasks = items.filter(function (i) { return i.area !== "Gaps"; });
+    if (!tasks.length) { box.appendChild(el("div", "empty", dbRef ? "No checklist items yet." : "Loading your checklist...")); return; }
+    var shown = 0;
+    var areas = AREA_ORDER.slice();
+    tasks.forEach(function (i) { if (areas.indexOf(i.area) < 0) areas.push(i.area); });
+    var wrap = el("div");
+    wrap.style.display = "grid"; wrap.style.gap = "14px";
+    areas.forEach(function (a) {
+      var all = tasks.filter(function (i) { return i.area === a; });
+      if (!all.length) return;
+      var vis = all.filter(visible);
+      if (!vis.length) return;
+      var card = el("div", "area");
+      card.id = "area-" + a.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      var head = el("div", "area-head");
+      head.appendChild(el("h3", null, a));
+      var d = all.filter(function (i) { return i.status === "done"; }).length;
+      head.appendChild(el("span", "tally", d + " of " + all.length + " done"));
+      card.appendChild(head);
+      vis.forEach(function (it) { card.appendChild(itemRow(it, { open: "Open", done: "Done" })); shown++; });
+      wrap.appendChild(card);
+    });
+    if (!shown) box.appendChild(el("div", "empty", "Nothing matches this filter."));
+    else box.appendChild(wrap);
+  }
+
+  function renderGaps() {
+    var box = document.getElementById("gap-list");
+    box.textContent = "";
+    var gaps = items.filter(function (i) { return i.area === "Gaps"; });
+    var openN = gaps.filter(function (g) { return g.status !== "done"; }).length;
+    document.getElementById("gap-count").textContent = gaps.length ? openN + " open of " + gaps.length : "";
+    if (!gaps.length) { box.appendChild(el("div", "empty", dbRef ? "No gaps recorded." : "Loading gaps...")); return; }
+    var card = el("div", "area");
+    gaps.forEach(function (g) { card.appendChild(itemRow(g, { open: "Open", done: "Resolved" })); });
+    box.appendChild(card);
+  }
+
+  function renderSummary() {
+    var req = items.filter(function (i) { return i.area !== "Gaps" && !i.optional; });
+    var d = req.filter(function (i) { return i.status === "done"; }).length;
+    var o = req.filter(function (i) { return i.status === "open"; }).length;
+    var u = req.filter(function (i) { return i.status === "unknown"; }).length;
+    if (req.length) {
+      document.getElementById("d-prog").innerHTML = "";
+      var n = document.getElementById("d-prog");
+      n.appendChild(document.createTextNode(String(d)));
+      n.appendChild(el("small", null, " of " + req.length));
+      document.getElementById("d-prog-sub").textContent = o + " open, " + u + " unknown";
+      document.getElementById("d-prog-bar").style.width = Math.round(100 * d / req.length) + "%";
+      document.getElementById("check-count").textContent = d + " done · " + o + " open · " + u + " unknown";
+    }
+    var upcoming = items.filter(function (i) { return i.status !== "done" && i.due && i.area !== "Gaps"; })
+      .sort(function (a, b) { return a.due < b.due ? -1 : 1; });
+    if (upcoming.length) {
+      var nx = upcoming[0], dd = daysTo(nx.due);
+      document.getElementById("d-next").textContent = dd < 0 ? "Late" : String(dd);
+      var sub = document.getElementById("d-next-sub");
+      sub.textContent = nx.title + ", " + fmt(nx.due) + " ";
+      if (nx.dueBasis) sub.appendChild(badge(nx.dueBasis));
+    } else if (items.length) {
+      document.getElementById("d-next").textContent = "None";
+      document.getElementById("d-next-sub").textContent = "No open item has a date";
+    }
+  }
+
+  function renderHistory() {
+    var ul = document.getElementById("hist-list");
+    ul.textContent = "";
+    document.getElementById("hist-count").textContent = history.length ? String(history.length) : "";
+    if (!history.length) { var li0 = el("li"); li0.appendChild(el("span", "v", "No changes yet. Each status you set shows up here with its date.")); ul.appendChild(li0); return; }
+    var names = { open: "open", done: "done", unknown: "unknown" };
+    history.slice(0, 25).forEach(function (h) {
+      var li = el("li");
+      var gapish = h.area === "Gaps";
+      var to = gapish && h.to === "done" ? "resolved" : names[h.to] || h.to;
+      var from = gapish && h.from === "done" ? "resolved" : names[h.from] || h.from;
+      li.appendChild(el("span", null, (h.title || h.item) + ": " + from + " to " + to));
+      var at = new Date(h.at);
+      li.appendChild(el("span", "v mono", isNaN(at) ? "" : MONTHS[at.getMonth()] + " " + at.getDate() + ", " + at.getFullYear()));
+      ul.appendChild(li);
+    });
+  }
+
+  function renderChart() {
+    var box = document.getElementById("chart");
+    box.textContent = "";
+    var done = items.filter(function (i) { return i.area !== "Gaps" && i.status === "done" && i.doneOn; })
+      .map(function (i) { return { d: i.doneOn, t: i.title }; })
+      .sort(function (a, b) { return a.d < b.d ? -1 : 1; });
+    document.getElementById("prog-count").textContent = done.length ? done.length + " done" : "";
+    if (!done.length) { box.appendChild(el("p", "small muted", items.length ? "Nothing marked done yet." : "Loading...")); return; }
+    var byDay = [];
+    done.forEach(function (x) {
+      var last = byDay[byDay.length - 1];
+      if (last && last.d === x.d) last.items.push(x.t); else byDay.push({ d: x.d, items: [x.t] });
+    });
+    var cum = 0; byDay.forEach(function (b) { cum += b.items.length; b.c = cum; });
+    var W = Math.max(280, box.clientWidth || 600), H = 170, m = { l: 30, r: 14, t: 12, b: 26 };
+    var x0 = parseD(byDay[0].d).getTime() - 7 * 86400000;
+    var x1 = Math.max(today().getTime(), parseD(byDay[byDay.length - 1].d).getTime()) + 3 * 86400000;
+    var total = items.filter(function (i) { return i.area !== "Gaps" && !i.optional; }).length || cum;
+    var yMax = Math.max(total, cum);
+    function X(t) { return m.l + (t - x0) / (x1 - x0) * (W - m.l - m.r); }
+    function Y(v) { return H - m.b - v / yMax * (H - m.t - m.b); }
+    var ns = "http://www.w3.org/2000/svg";
+    function s(tag, attrs) { var e = document.createElementNS(ns, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+    var svg = s("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": cum + " items done over time" });
+    var g = s("g", { "class": "grid" });
+    var ticks = [0, Math.round(yMax / 2), yMax];
+    var ax = s("g", { "class": "axis" });
+    ticks.forEach(function (v) {
+      g.appendChild(s("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }));
+      var t = s("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }); t.textContent = v; ax.appendChild(t);
+    });
+    svg.appendChild(g);
+    // month ticks
+    var md = new Date(parseD(byDay[0].d).getFullYear(), parseD(byDay[0].d).getMonth(), 1);
+    while (md.getTime() <= x1) {
+      if (md.getTime() >= x0) {
+        var tx = s("text", { x: X(md.getTime()), y: H - 6, "text-anchor": "middle" }); tx.textContent = MONTHS[md.getMonth()]; ax.appendChild(tx);
+      }
+      md = new Date(md.getFullYear(), md.getMonth() + 1, 1);
+    }
+    svg.appendChild(ax);
+    // target line
+    svg.appendChild(s("line", { x1: m.l, x2: W - m.r, y1: Y(total), y2: Y(total), stroke: "var(--muted)", "stroke-dasharray": "3 4", "stroke-width": 1 }));
+    var tl = s("text", { x: W - m.r, y: Y(total) - 5, "text-anchor": "end", fill: "var(--muted)", "font-size": 11, "font-family": "var(--f-mono)" }); tl.textContent = total + " required"; svg.appendChild(tl);
+    // step path
+    var dPath = "M" + X(x0) + "," + Y(0);
+    byDay.forEach(function (b, i) {
+      var xx = X(parseD(b.d).getTime());
+      dPath += " L" + xx + "," + Y(i ? byDay[i - 1].c : 0) + " L" + xx + "," + Y(b.c);
+    });
+    var endX = X(today().getTime());
+    dPath += " L" + endX + "," + Y(cum);
+    svg.appendChild(s("path", { d: dPath + " L" + endX + "," + Y(0) + " Z", fill: "var(--done-soft)", stroke: "none" }));
+    svg.appendChild(s("path", { d: dPath, fill: "none", stroke: "var(--done)", "stroke-width": 2 }));
+    var tip = el("div", "tip"); tip.hidden = true;
+    byDay.forEach(function (b, i) {
+      var cx = X(parseD(b.d).getTime()), cy = Y(b.c);
+      var dot = s("circle", { cx: cx, cy: cy, r: i === byDay.length - 1 ? 5 : 3.5, fill: "var(--done)", stroke: "var(--panel)", "stroke-width": 1.5, tabindex: 0 });
+      var show = function () {
+        tip.textContent = fmt(b.d) + ": " + b.items.length + " done (" + b.c + " total)";
+        var r = svg.getBoundingClientRect(), br = document.getElementById("chart-box").getBoundingClientRect();
+        tip.style.left = (r.left - br.left + cx / W * r.width) + "px";
+        tip.style.top = (r.top - br.top + cy / H * r.height) + "px";
+        tip.hidden = false;
+      };
+      dot.addEventListener("mouseenter", show); dot.addEventListener("focus", show);
+      dot.addEventListener("click", show);
+      dot.addEventListener("mouseleave", function () { tip.hidden = true; }); dot.addEventListener("blur", function () { tip.hidden = true; });
+      svg.appendChild(dot);
+    });
+    box.appendChild(svg);
+    document.getElementById("chart-box").appendChild(tip);
+    var old = document.querySelectorAll("#chart-box .tip"); for (var k = 0; k < old.length - 1; k++) old[k].remove();
+  }
+
+  function renderAll() { renderSummary(); renderChecklist(); renderGaps(); renderChart(); renderHistory(); }
+
+  var rt; window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(renderChart, 150); });
+
+  function note(msg) { var n = document.getElementById("write-note"); n.textContent = msg; n.hidden = !msg; }
+
+  function setStatus(it, v) {
+    if (localMode) { if (it.status !== v) setLocalStatus(it, v); return; }
+    if (!dbRef || !canWrite || it.status === v || pending[it.id]) return;
+    pending[it.id] = true;
+    var from = it.status;
+    var patch = { status: v, updatedAt: new Date().toISOString() };
+    if (v === "done") patch.doneOn = isoToday();
+    else if (from === "done") patch.doneOn = null;
+    renderChecklist(); renderGaps();
+    dbRef.doc("items/" + it.id).update(patch).then(function () {
+      return dbRef.collection("history").add({ item: it.id, title: it.title, area: it.area, from: from, to: v, at: patch.updatedAt });
+    }).then(function () { note(""); }).catch(function (e) {
+      if (e && e.code === "invalid_argument") { canWrite = false; note("You can view this dashboard but not change it."); }
+      else if (e && e.code === "quota_exceeded") note("The change log is full, so this change wasn't saved.");
+      else note("That change didn't save. Try again in a moment.");
+    }).then(function () { delete pending[it.id]; renderAll(); });
+  }
+
+  // Saved copy of the checklist, so the page works when opened as a file.
+  var SEED_AS_OF = "2026-11-19";
+  var SEED_ITEMS = [{"area": "TAP courses", "detail": "", "doneOn": "2026-10-14", "optional": false, "order": 1, "source": "tapevents completion email", "status": "done", "title": "Pre-Separation Brief", "id": "psb"}, {"area": "TAP courses", "detail": "", "doneOn": "2026-10-16", "optional": false, "order": 2, "source": "tapevents completion email", "status": "done", "title": "MY Transition", "id": "mytransition"}, {"area": "TAP courses", "detail": "", "doneOn": "2026-10-16", "optional": false, "order": 3, "source": "tapevents completion email", "status": "done", "title": "MOC Crosswalk", "id": "moc"}, {"area": "TAP courses", "detail": "", "doneOn": "2026-10-16", "optional": false, "order": 4, "source": "tapevents completion email", "status": "done", "title": "Financial Planning for Transition", "id": "finplan"}, {"area": "TAP courses", "detail": "", "doneOn": "2026-10-20", "optional": false, "order": 5, "source": "tapevents completion email", "status": "done", "title": "VA Benefits and Services", "id": "vabs"}, {"area": "TAP courses", "detail": "Completed Nov 16, 2026, per the TAP events email. Zion credited it.", "doneOn": "2026-11-16", "optional": false, "order": 6, "source": "", "status": "done", "title": "Employment Fundamentals of Career Transition (EFCT)", "id": "efct"}, {"area": "Tier 1 milestones", "detail": "", "doneOn": "2026-05-21", "optional": false, "order": 7, "source": "TSCRS welcome email", "status": "done", "title": "TAP self-registration", "id": "selfreg"}, {"area": "Tier 1 milestones", "detail": "Done by May 21, per the IIC reminder.", "doneOn": "2026-05-21", "optional": false, "order": 8, "source": "TSCRS reminder", "status": "done", "title": "Initial Assessment", "id": "initassess"}, {"area": "Tier 1 milestones", "detail": "", "doneOn": "2026-09-17", "optional": false, "order": 9, "source": "TSCRS thank-you email", "status": "done", "title": "Pre-Transition Survey", "id": "pretransurvey"}, {"area": "Tier 1 milestones", "detail": "In person at Fort Shafter.", "doneOn": "2026-10-14", "optional": false, "order": 10, "source": "TSCRS confirmation", "status": "done", "title": "Individual Initial Counseling (IIC)", "id": "iic"}, {"area": "Tier 1 milestones", "detail": "Part of the VA Benefits and Services step in the Tier 1 standards; bring proof to Capstone. No email shows it.", "doneOn": "2026-11-12", "optional": false, "order": 11, "source": "", "status": "done", "title": "VA.gov registration", "id": "vagov"}, {"area": "Tier 1 milestones", "detail": "Zion says this can only be done 6 to 8 months before ETS: about Jan 27 to Mar 27, 2027.", "due": "2027-01-27", "dueBasis": "inferred", "optional": false, "order": 12, "source": "", "status": "open", "title": "Continuum of Military Service Counseling", "who": "Zion Kennach", "id": "continuum"}, {"area": "Tier 1 milestones", "detail": "Required for Tier 1; bring it to Capstone. No email shows it done.", "optional": false, "order": 13, "source": "", "status": "unknown", "title": "EISA Post Assessment", "who": "Zion Kennach", "id": "eisapost"}, {"area": "Tier 1 milestones", "detail": "Zion's order: send your notes on pages 1 to 6, then the Post Assessment, then Capstone.", "optional": false, "order": 14, "source": "", "status": "open", "title": "Individual Transition Plan (ITP)", "who": "Zion Kennach", "id": "itp"}, {"area": "Tier 1 milestones", "detail": "Needed for the CSP packet, and all Career Readiness Standards must be met before you leave Hawaii. Hard limit is 90 days before ETS (Jun 29, 2027); it can be done virtually.", "due": "2027-03-06", "dueBasis": "inferred", "info": "At Capstone, your counselor checks that you meet the Career Readiness Standards and finalizes your DD 2648.", "optional": false, "order": 15, "shift": true, "source": "", "status": "unknown", "title": "Capstone", "who": "Zion Kennach", "id": "capstone"}, {"area": "CSP packet", "detail": "Attendance confirmed in your TAP record on Nov 10.", "doneOn": "2026-11-02", "optional": false, "order": 16, "source": "CSP Virtual Center email", "status": "done", "title": "CSP Brief", "id": "cspbrief"}, {"area": "CSP packet", "detail": "Is Boston Dynamics an approved SkillBridge program (no Individual Internship Agreement) or an individual internship (adds the agreement, unit legal review and an IPPS-A PAR upload)?", "doneOn": "2026-11-12", "optional": false, "order": 17, "source": "", "status": "done", "title": "Confirm the program path with a CSP counselor", "id": "path"}, {"area": "CSP packet", "detail": "No Boston Dynamics email in this inbox. It may be in your Army mailbox.", "optional": false, "order": 18, "source": "", "status": "open", "title": "Employer acceptance letter from Boston Dynamics", "id": "acceptance"}, {"area": "CSP packet", "detail": "Required packet item. Not found in the emails.", "optional": false, "order": 19, "source": "", "status": "open", "title": "Training plan", "id": "trainingplan"}, {"area": "CSP packet", "detail": "Soldier, program and counselor verification parts; signed by the CSP counselor.", "optional": false, "order": 20, "source": "", "status": "open", "title": "IMCOM Form 45 (Oct 2026 version)", "id": "imcom45"}, {"area": "CSP packet", "detail": "Signed to verify IIC and the Pre-Separation Brief are complete. Your PSB certificate dated Oct 14 supports it.", "due": "2027-03-06", "dueBasis": "inferred", "optional": false, "order": 21, "shift": true, "source": "", "status": "open", "title": "Draft DD Form 2648, signed", "who": "Zion Kennach", "id": "dd2648"}, {"area": "CSP packet", "detail": "Required for all candidates. Travel, lodging and food are your own cost unless provided.", "optional": false, "order": 22, "source": "", "status": "open", "title": "CSP Terms and Conditions Acceptance Form, signed", "id": "cspaccept"}, {"area": "CSP packet", "detail": "An ETP to not return requires separation orders. Check that they name your alternate Transition Center and list the funding codes for your final move before you leave.", "due": "2027-03-06", "dueBasis": "inferred", "optional": false, "order": 23, "shift": true, "source": "", "status": "open", "title": "Separation orders", "who": "Unit S1 and the Separations Center", "id": "orders"}, {"area": "Approvals and submission", "detail": "Your last 180 days start Mar 31, 2027, so an Apr 5 start is inside. They must cover SkillBridge, travel, outprocessing and terminal leave, with every day accounted for.", "due": "2027-03-31", "dueBasis": "inferred", "optional": false, "order": 25, "source": "", "status": "open", "title": "Check CSP falls inside your last 180 days", "id": "eligibility"}, {"area": "Approvals and submission", "detail": "A listed packet step; no date given.", "optional": false, "order": 26, "source": "", "status": "open", "title": "Inform your chain of command", "id": "chain"}, {"area": "Approvals and submission", "detail": "In IPPS-A: travel days to Massachusetts, CSP admin absence Apr 5 to Sep 1 (Aug 2 if 120 days), then terminal leave to Sep 27. Copies go in the packet.", "due": "2027-01-05", "dueBasis": "inferred", "info": "The current Hawaii ETS page says submit transition leave at least 90 days before it starts, approved by a commander. Your first absence starts in early April, so Jan 5 is 90 days before Apr 5; applying the rule to the CSP absence is my read. Without an approved absence 60 days before ETS, orders get a report date 2 days before separation.", "optional": false, "order": 27, "shift": true, "source": "USAG Hawaii ETS page (Jan 2025)", "status": "open", "title": "Request administrative absence in IPPS-A", "who": "Unit S1", "id": "absence"}, {"area": "Approvals and submission", "detail": "Category I (E1 to E5, up to 120 days): first field-grade commander with UCMJ authority, per the IIC slides citing MILPER 25-116.", "optional": false, "order": 28, "source": "", "status": "open", "title": "Commander approval", "id": "commander"}, {"area": "Approvals and submission", "detail": "At least 30 days before the Apr 5 start. Was Mar 2. Send the ETP request with it.", "due": "2027-03-06", "dueBasis": "inferred", "optional": false, "order": 29, "shift": true, "source": "", "status": "open", "title": "Submit the packet to the CSP Virtual Center", "who": "Deborah Brown, CSP Virtual Center", "id": "submit"}, {"area": "Approvals and submission", "detail": "After the Virtual Center verifies it.", "optional": false, "order": 30, "source": "", "status": "open", "title": "Upload the packet to IPPS-A for command approval", "id": "ippsa"}, {"area": "Outprocessing in Hawaii", "detail": "Lets you go from SkillBridge straight to Final Out near Waltham instead of flying back. Needs your plan of action memo.", "due": "2027-03-06", "dueBasis": "inferred", "info": "Your company commander starts it, through your first field grade commander with UCMJ authority, to HQDA G-1, which approves it. It needs your plan of action memo and separation orders. Once approved, your orders must name the alternate Transition Center closest to SkillBridge or your final home.", "optional": false, "order": 31.1, "shift": true, "source": "MILPER 25-116", "status": "open", "title": "ETP to not return to Hawaii approved", "who": "Company commander, through your first field grade commander, to HQDA G-1", "id": "op-etp"}, {"area": "Outprocessing in Hawaii", "detail": "Required for OCONUS Soldiers who won't return after SkillBridge.", "due": "2027-03-06", "dueBasis": "inferred", "info": "DEROS is your date to return from overseas. MILPER 25-116 lists an approved change as a step for OCONUS Soldiers who won't come back after SkillBridge.", "optional": false, "order": 31.2, "shift": true, "source": "MILPER 25-116", "status": "open", "title": "Approved DEROS change", "who": "Unit S1", "id": "op-deros"}, {"area": "Outprocessing in Hawaii", "detail": "The TAP timeline says 6 to 4 months before ETS. You leave in early April, so finish before then.", "due": "2027-03-01", "dueBasis": "inferred", "optional": false, "order": 31.3, "source": "USAG Hawaii TAP timeline", "status": "open", "title": "Dental exam before you leave Hawaii", "who": "Your dental clinic", "id": "op-dental"}, {"area": "Outprocessing in Hawaii", "detail": "Authorizes you to clear the unit and installation, minus Final Out, before you leave.", "due": "2027-03-12", "dueBasis": "inferred", "info": "With this memo you clear everything in Hawaii before you go, and leave only Final Out for the alternate Transition Center after SkillBridge.", "optional": false, "order": 31.4, "source": "MILPER 25-116", "status": "open", "title": "Commander's memo to clear before SkillBridge", "who": "Company commander", "id": "op-cmdmemo"}, {"area": "Outprocessing in Hawaii", "detail": "No earlier than 20 calendar days before you leave. Include the Out-Processing Data Sheet, orders and amendments, and the approved absence request.", "due": "2027-03-15", "dueBasis": "inferred", "info": "Use the IPPS-A path Admin, Records Correction, Other, Clearing Papers, routed through your S1. Requests sent too early aren't processed and go back to the S1. Clearing papers come back 14 business days before you leave.", "optional": false, "order": 31.5, "source": "USAG Hawaii out-processing brief", "status": "open", "title": "Request clearing papers in IPPS-A", "who": "Unit S1", "id": "op-par"}, {"area": "Outprocessing in Hawaii", "detail": "Visit every office on DA 137-1 (unit) and DA 137-2 (installation) that isn't pre-cleared, such as CIF for TA-50, housing or barracks, and finance. Can take up to 14 work days. Duty uniform only.", "due": "2027-04-02", "dueBasis": "inferred", "info": "Block 16 of DA 137-2 shows the Final Out date; for you that happens at the alternate Transition Center after SkillBridge. You can't be on leave and clearing at the same time, so finish before your travel absence starts. With a commander's memo, CIF turn-in can be up to 30 days before your availability date.", "optional": false, "order": 31.6, "shift": true, "source": "", "status": "open", "title": "Clear unit and installation, minus Final Out", "who": "Out-Processing Control Center, Bldg 750 Rm 102", "id": "clearing"}, {"area": "Outprocessing in Hawaii", "detail": "AR 380-5 calls for an oral termination briefing, return of any classified material, and a signed DA Form 2962 (Security Termination Statement). The copy I found is an old edition and gives no timing, so ask your S2 whether to do it before you leave Hawaii.", "due": "2027-04-02", "dueBasis": "inferred", "optional": false, "order": 31.7, "source": "AR 380-5 chapter 10 (older edition)", "status": "open", "title": "Security debrief for your Secret clearance", "who": "Unit S2 or security manager", "id": "op-security"}, {"area": "Outprocessing in Hawaii", "detail": "One-on-one finance appointment. Needed for your DD 214.", "due": "2027-04-02", "dueBasis": "inferred", "info": "The Separations Center lists this sheet among the documents it needs to build your DD 214.", "optional": false, "order": 31.8, "source": "USAG Hawaii Separations Center", "status": "open", "title": "Finance DD 214 information sheet", "who": "Finance, Bldg 750 Rm 103", "id": "op-finance"}, {"area": "Outprocessing in Hawaii", "detail": "Ships to home of record or where you entered service; for CSP your orders can treat it like a station of choice move. Storage up to 180 days at government cost. You have 180 days after discharge to finish all travel and shipping.", "due": "2027-03-12", "dueBasis": "inferred", "info": "MILPER 25-116 says the funding codes for your final move must be on your orders and checked before you leave for SkillBridge.", "optional": false, "order": 31.9, "source": "USAG Hawaii transition brief, MILPER 25-116", "status": "open", "title": "Schedule your household goods move", "who": "Transportation office (PPPO)", "id": "op-hhg"}, {"area": "Outprocessing in Hawaii", "detail": "Book online at PCSmyPOV once you have orders. Turn-in is by appointment only, no walk-ins. Bring orders with all amendments, proof of ownership and a government ID, with under a quarter tank of gas. No official page gives how far ahead to book or drop off.", "due": "2027-03-19", "dueBasis": "inferred", "info": "The Honolulu vehicle processing center was at Pier 1 on Forrest Avenue as of 2021. When the car arrives, you have 21 days to schedule pickup.", "optional": false, "order": 32, "source": "USAG Hawaii article (2021), Personal Property Activity", "status": "open", "title": "Ship your car", "who": "Transportation office (PPPO)", "id": "op-pov"}, {"area": "Outprocessing in Hawaii", "detail": "Booked from your orders. Travel days must be on an approved absence.", "due": "2027-03-19", "dueBasis": "inferred", "info": "Separating Soldiers have 6 months after separation to make the final move. Don't file the travel voucher before your separation date.", "optional": false, "order": 32.1, "shift": true, "source": "USAG Hawaii transition brief", "status": "open", "title": "Book your flight to Massachusetts", "who": "Contract travel office (CWT or SATO)", "id": "op-travel"}, {"area": "VA and medical", "detail": "File 180 to 90 days before separation: Mar 31 to Jun 29, 2027. You must be available for VA exams for 45 days after filing, likely in Massachusetts. Filing online lets the VA pull your records.", "due": "2027-03-31", "dueBasis": "inferred", "info": "With fewer than 90 days left you can't use BDD, but you can still file a regular claim before you separate. Include the Separation Health Assessment Part A self-assessment with the claim.", "optional": false, "order": 32.5, "shift": true, "source": "va.gov", "status": "open", "title": "File the VA disability claim (BDD)", "who": "VA Benefits Advisors, Bldg 560 Rm 216", "id": "bdd"}, {"area": "VA and medical", "detail": "Required for everyone, and a hard copy is needed at Final Out. A VA exam must be within 180 days of separation; a military clinic exam within 30 days, when you'll be in Massachusetts. My read: the BDD route fits best.", "due": "2027-08-02", "dueBasis": "inferred", "info": "The DOD and VA use one shared exam, so a VA exam through BDD can count for both. Bring a hard copy of phases 1 and 2 to Final Out.", "optional": false, "order": 32.6, "source": "Separation briefing slides, health.mil", "status": "open", "title": "Separation physical (SHPE)", "who": "VA exam through your BDD claim, or a military clinic", "id": "op-shpe"}, {"area": "Optional", "detail": "Mondays 0900, Schofield Bldg 750 Rm 136.", "optional": true, "order": 33, "source": "", "status": "open", "title": "Attend a CSP Packet Review and Employer Brief", "id": "packetreview"}, {"area": "Final Out and after", "detail": "MILPER 25-116 says the alternate Transition Center must come from the Regular Army list in AR 635-8. Devens is an Army Reserve training area, and none of its service pages list a transition center or separations office. Fort Drum, NY does have a transition center. Ask MPD which one goes on your orders.", "due": "2027-07-02", "dueBasis": "inferred", "info": "Set the arrival date with CSP staff so you have time to travel from SkillBridge to the Transition Center. If you don't finish SkillBridge, you go straight back to your unit in Hawaii.", "optional": false, "order": 33.1, "source": "MILPER 25-116, USAG Devens pages, Fort Drum transition center page", "status": "open", "title": "Book Final Out with the alternate Transition Center", "who": "Hawaii MPD and Separations Center", "id": "op-tcappt"}, {"area": "Final Out and after", "detail": "The TAP timeline says review your DD 2648 and DD 214 three months out. Bring awards or 40 hour courses missing from the draft.", "due": "2027-06-29", "dueBasis": "inferred", "info": "The separation briefing slides advise stopping by the Transition Center at least three times before Final Out to review it.", "optional": false, "order": 33.2, "source": "USAG Hawaii TAP timeline", "status": "open", "title": "Review your DD 214 draft", "who": "Transition Center", "id": "op-dd214"}, {"area": "Final Out and after", "detail": "Sep 1 in your ETP plan (Aug 2 if 120 days). Bring orders and amendments, cleared DA 137-1 and 137-2, approved leave form, DD 2648, finance DD 214 sheet and a hard copy of your SHPE.", "due": "2027-09-01", "dueBasis": "inferred", "info": "Missing your report date can affect pay and entitlements, and your DD 214 may be mailed to you unsigned.", "optional": false, "order": 33.3, "shift": true, "source": "MILPER 25-116, USAG Hawaii Separations Center", "status": "open", "title": "Final Out and DD 214", "who": "Alternate Transition Center (MPD picks it)", "id": "op-finalout"}, {"area": "Final Out and after", "detail": "Your CAC can't be used after Sep 27, and its expiration must match your separation date. TRICARE for you and your family ends at 11:59 pm on your last day of active duty. TAMP's 180 extra days covers involuntary separations and a few other cases, not a regular ETS.", "due": "2027-09-27", "dueBasis": "inferred", "info": "CHCBP is the paid bridge plan: apply within 60 days of losing TRICARE, bought in 90 day blocks, no dental. Your family can check eligibility in milConnect. No official page I found says what happens to family ID cards, so ask the ID card office.", "optional": false, "order": 33.4, "source": "tricare.mil, TRICARE separating briefing (Jan 2026), separation briefing slides", "status": "open", "title": "ID cards and health coverage at separation", "who": "ID card office, and TRICARE through milConnect", "id": "op-id"}, {"area": "Final Out and after", "detail": "Sep 2 to Sep 27 (26 days) after a 150 day SkillBridge, or Aug 3 to Sep 27 (56 days) after 120 days. Starts right after the program.", "due": "2027-09-27", "dueBasis": "inferred", "info": "Your leave has to run exactly to your separation date. Excess leave isn't authorized.", "optional": false, "order": 33.5, "shift": true, "source": "MILPER 25-116, your ETP plan", "status": "open", "title": "Terminal leave to ETS", "who": "Unit S1", "id": "op-terminal"}, {"area": "Optional", "detail": "Gets you a one-on-one with a CSP counselor.", "optional": true, "order": 34, "source": "", "status": "open", "title": "Send the CSP Interest Inventory", "id": "interest"}, {"area": "Optional", "detail": "Recommended by Zion.", "optional": true, "order": 35, "source": "", "status": "open", "title": "ENPP one-on-one", "id": "enpp"}, {"area": "Optional", "detail": "Optional for Tier 1, per Zion. The workbook wasn't attached.", "optional": true, "order": 36, "source": "", "status": "open", "title": "Spending Plan and GAP Analysis", "id": "spendgap"}, {"area": "Gaps", "detail": "Resolved: the TAP events email shows EFCT completed Nov 16, 2026.", "doneOn": "2026-11-19", "optional": false, "order": 37, "source": "", "status": "done", "title": "EFCT has two registration emails and no completion email", "id": "g-efct"}, {"area": "Gaps", "detail": "No acceptance letter or training plan, and nothing showing you applied or got a reply. These may be in your Army mailbox, which isn't connected.", "optional": false, "order": 38, "source": "", "status": "open", "title": "No Boston Dynamics email in this inbox", "id": "g-bd"}, {"area": "Gaps", "detail": "No email shows Zion or another counselor signing it.", "optional": false, "order": 39, "source": "", "status": "open", "title": "No signed DD Form 2648 in any email", "id": "g-2648"}, {"area": "Gaps", "detail": "Continuum counseling, EISA Post Assessment, ITP review and Capstone.", "optional": false, "order": 40, "source": "", "status": "open", "title": "Remaining Tier 1 steps not in any email", "id": "g-tier1"}, {"area": "Gaps", "detail": "ITP Blank Fillable, ITP Example, the spend plan workbook and sample, and the GAP Analysis MOC.", "optional": false, "order": 41, "source": "", "status": "open", "title": "Files named but not attached", "id": "g-files"}, {"area": "Gaps", "detail": "Resolved: the ETP rules for not returning say separation orders are required.", "doneOn": "2026-11-19", "optional": false, "order": 42, "source": "", "status": "done", "title": "Separation orders clause vs STP orders", "id": "g-orders"}, {"area": "Gaps", "detail": "Data as of Aug 1, 2026.", "optional": false, "order": 43, "source": "", "status": "open", "title": "VMET shows no military training data", "id": "g-vmet"}, {"area": "Gaps", "detail": "Resolved: you're requesting an ETP to not return to Hawaii after SkillBridge. Your plan of action is drafted for Apr 5 to Sep 1.", "doneOn": "2026-11-19", "optional": false, "order": 44, "source": "", "status": "done", "title": "Whether an ETP applies isn't stated", "id": "g-etp"}, {"area": "Gaps", "detail": "", "optional": false, "order": 45, "source": "", "status": "open", "title": "No emails from Brittany Hiner or the Hawaii TAP mailbox", "id": "g-replies"}, {"area": "Gaps", "detail": "Resolved: the current Hawaii ETS page (Jan 2025) says submit transition leave at least 90 days before it starts. The 6 month rule came from a 2020 brief. Your absences are now due about Jan 5.", "doneOn": "2026-11-19", "optional": false, "order": 46, "source": "USAG Hawaii transition brief (Jan 2020)", "status": "done", "title": "Leave form timing vs the Mar 6 packet", "id": "g-leavetiming"}, {"area": "Gaps", "detail": "Your ETP plan names Devens for Final Out, but Devens is an Army Reserve training area and its pages list no separations office. The TAP office will settle which transition center goes on your orders.", "optional": false, "order": 47, "source": "USAG Devens pages, MILPER 25-116", "status": "open", "title": "Devens may not be a transition center", "who": "TAP office", "id": "g-devens"}, {"area": "Gaps", "detail": "Resolved: you confirmed you fly out of Hawaii Apr 3, 2027.", "doneOn": "2026-11-19", "optional": false, "order": 48, "source": "", "status": "done", "title": "Your fly-out date from Hawaii isn't set", "id": "g-flyout"}];
+  var SEED_HISTORY = [{"area": "CSP packet", "at": "2026-11-19T00:27:58.847Z", "from": "unknown", "item": "trainingplan", "title": "Training plan", "to": "open"}, {"area": "CSP packet", "at": "2026-11-19T00:27:56.737Z", "from": "unknown", "item": "acceptance", "title": "Employer acceptance letter from Boston Dynamics", "to": "open"}, {"area": "CSP packet", "at": "2026-11-13T07:55:27.431Z", "from": "open", "item": "path", "title": "Confirm the program path with a CSP counselor", "to": "done"}, {"area": "Tier 1 milestones", "at": "2026-11-13T07:54:51.105Z", "from": "unknown", "item": "vagov", "title": "VA.gov registration", "to": "done"}];
+  var LS_KEY = "tapdash.local.v1";
+  var localMode = false;
+
+  function lsRead() { try { var v = JSON.parse(localStorage.getItem(LS_KEY) || "null"); return v && typeof v === "object" ? v : { status: {}, history: [] }; } catch (e) { return { status: {}, history: [] }; } }
+  function lsWrite(v) { try { localStorage.setItem(LS_KEY, JSON.stringify(v)); return true; } catch (e) { return false; } }
+
+  function loadLocal() {
+    var saved = lsRead();
+    items = SEED_ITEMS.map(function (x) {
+      var o = {}; for (var k in x) o[k] = x[k];
+      var s = saved.status && saved.status[o.id];
+      if (s) { o.status = s.status; if (s.doneOn) o.doneOn = s.doneOn; else delete o.doneOn; }
+      return o;
+    });
+    history = (saved.history || []).concat(SEED_HISTORY).sort(function (a, b) { return a.at < b.at ? 1 : -1; }).slice(0, 200);
+    renderAll();
+  }
+
+  function goLocal() {
+    if (localMode || dbRef) return;
+    localMode = true; canWrite = true;
+    loadLocal();
+    note("Offline copy saved " + fmt(SEED_AS_OF) + ". Status changes save in this browser only and don't reach your dashboard on claude.ai.");
+  }
+
+  function setLocalStatus(it, v) {
+    var saved = lsRead();
+    saved.status = saved.status || {}; saved.history = saved.history || [];
+    var at = new Date().toISOString();
+    saved.status[it.id] = { status: v, doneOn: v === "done" ? isoToday() : null };
+    saved.history.unshift({ item: it.id, title: it.title, area: it.area, from: it.status, to: v, at: at });
+    saved.history = saved.history.slice(0, 200);
+    if (!lsWrite(saved)) {
+      it.status = v; if (v === "done") it.doneOn = isoToday(); else delete it.doneOn;
+      history.unshift({ item: it.id, title: it.title, area: it.area, from: it.status, to: v, at: at });
+      note("This browser won't save changes, so they'll be lost when you close the page.");
+      renderAll(); return;
+    }
+    loadLocal();
+  }
+
+  // Show the saved copy right away; the live checklist replaces it on claude.ai.
+  items = SEED_ITEMS.map(function (x) { var o = {}; for (var k in x) o[k] = x[k]; return o; });
+  history = SEED_HISTORY.slice();
+  renderAll();
+
+  var hasRuntime = false;
+  try { hasRuntime = !!(window.claude && claude.use); } catch (e) { hasRuntime = false; }
+  if (!hasRuntime) {
+    goLocal();
+  } else {
+    var fallback = setTimeout(goLocal, 6000);
+    claude.use("user").then(function (u) {
+      if (!u) return;
+      return u.can("data.write").then(function (c) { if (c === false && !localMode) { canWrite = false; note("You can view this dashboard but not change it."); renderAll(); } });
+    }).catch(function () {});
+    claude.use("db").then(function (db) {
+      if (!db) { clearTimeout(fallback); goLocal(); return; }
+      if (localMode) return;
+      clearTimeout(fallback);
+      dbRef = db;
+      db.collection("items").orderBy("order").onSnapshot(function (snap) {
+        items = snap.docs.map(function (d) { var x = d.data(); var o = {}; for (var k in x) o[k] = x[k]; o.id = d.id; return o; });
+        renderAll();
+      }, function () { note("Lost the connection to your checklist. Reload the page."); });
+      db.collection("history").orderBy("at", "desc").limit(200).onSnapshot(function (snap) {
+        history = snap.docs.map(function (d) { return d.data(); });
+        renderHistory();
+      }, function () {});
+    }).catch(function () { clearTimeout(fallback); goLocal(); });
+  }
+})();
+</script>
